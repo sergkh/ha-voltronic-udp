@@ -27,6 +27,17 @@ from .coordinator import VoltronicCoordinator
 MEASUREMENT = SensorStateClass.MEASUREMENT
 TOTAL_INCREASING = SensorStateClass.TOTAL_INCREASING
 
+# QMOD is a one-character Voltronic PIP protocol value.  Expose clear states
+# in Home Assistant, but retain the exact raw value as an entity attribute.
+OPERATING_MODES = {
+    "P": "Power on",
+    "S": "Standby",
+    "L": "Line mode",
+    "B": "Battery mode",
+    "F": "Fault",
+    "H": "Power saving",
+}
+
 SENSORS: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(key="grid_voltage", name="Grid voltage", native_unit_of_measurement="V", device_class=SensorDeviceClass.VOLTAGE, state_class=MEASUREMENT),
     SensorEntityDescription(key="grid_frequency", name="Grid frequency", native_unit_of_measurement="Hz", device_class=SensorDeviceClass.FREQUENCY, state_class=MEASUREMENT),
@@ -50,7 +61,7 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
         key="operating_mode",
         name="Operating mode",
         device_class=SensorDeviceClass.ENUM,
-        options=["P", "S", "L", "B", "F", "H"],
+        options=list(OPERATING_MODES.values()),
     ),
 )
 
@@ -97,7 +108,19 @@ class VoltronicSensor(CoordinatorEntity[VoltronicCoordinator], SensorEntity):
     @property
     def native_value(self) -> Any:
         """Return the latest value supplied by the coordinator."""
-        return self.coordinator.data.get(self.entity_description.key)
+        value = self.coordinator.data.get(self.entity_description.key)
+        if self.entity_description.key == "operating_mode":
+            return OPERATING_MODES.get(value)
+        return value
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str] | None:
+        """Keep the raw PIP mode code available for diagnostics."""
+        if self.entity_description.key != "operating_mode":
+            return None
+        if (raw_mode := self.coordinator.data.get("operating_mode")) is None:
+            return None
+        return {"protocol_mode": raw_mode}
 
 
 class VoltronicPvEnergySensor(CoordinatorEntity[VoltronicCoordinator], RestoreSensor):

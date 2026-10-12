@@ -18,6 +18,11 @@ For manual installation, copy `custom_components/voltronic_udp` to `/config/cust
 
 Only read-only PIP commands are sent: `QMN`, `QPIGS`, and `QMOD`. A transient `NAK` response is retried.
 
+The inverter's compact `QMOD` protocol codes are shown as readable operating
+states: **Power on**, **Standby**, **Line mode**, **Battery mode**, **Fault**,
+or **Power saving**. The original one-letter protocol code remains available as
+the entity's `protocol_mode` attribute for diagnostics.
+
 PV input power is calculated locally as reported PV input voltage multiplied by
 reported PV input current. It is DC input power at the inverter, not an energy
 meter and not an allowance for conversion losses.

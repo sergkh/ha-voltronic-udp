@@ -88,11 +88,26 @@ class PipUdpClient:
 
     def __init__(self, host: str, port: int, source_port: int, retries: int = 4) -> None:
         self.destination = (host, port)
+        self.source_port = source_port
         self.retries = retries
         self.model: str | None = None
-        self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._socket.bind(("0.0.0.0", source_port))
+        self._socket = self._open_socket()
+
+    def _open_socket(self) -> socket.socket:
+        """Create and bind the UDP socket used by this client."""
+        udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            udp_socket.bind(("0.0.0.0", self.source_port))
+        except OSError:
+            udp_socket.close()
+            raise
+        return udp_socket
+
+    def reconnect(self) -> None:
+        """Recreate the UDP socket after a failed polling cycle."""
+        self.close()
+        self._socket = self._open_socket()
 
     def close(self) -> None:
         """Release the local UDP port."""

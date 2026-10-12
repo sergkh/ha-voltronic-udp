@@ -12,6 +12,8 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .client import PipUdpClient, PipUdpError
 from .const import DOMAIN
 
+_LOGGER = logging.getLogger(__name__)
+
 
 class VoltronicCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Fetch live inverter data in Home Assistant's executor."""
@@ -26,7 +28,15 @@ class VoltronicCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.client = client
 
     async def _async_update_data(self) -> dict[str, Any]:
+        """Read the inverter, recreating its UDP socket once if needed."""
         try:
             return await self.hass.async_add_executor_job(self.client.read)
         except (OSError, PipUdpError) as err:
-            raise UpdateFailed(f"Unable to read inverter: {err}") from err
+            _LOGGER.debug("Inverter read failed; recreating the UDP socket once: %s", err)
+            try:
+                await self.hass.async_add_executor_job(self.client.reconnect)
+                return await self.hass.async_add_executor_job(self.client.read)
+            except (OSError, PipUdpError) as retry_err:
+                raise UpdateFailed(
+                    f"Unable to read inverter after recreating UDP socket: {retry_err}"
+                ) from retry_err
