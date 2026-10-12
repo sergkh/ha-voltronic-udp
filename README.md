@@ -1,4 +1,4 @@
-<img src="icon.svg" width="96" alt="Voltronic UDP Inverter icon">
+<img src="custom_components/voltronic_udp/brand/icon.png" width="96" alt="Voltronic UDP Inverter icon">
 
 # Voltronic UDP Inverter
 
