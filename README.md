@@ -1,3 +1,5 @@
+<img src="icon.svg" width="96" alt="Voltronic UDP Inverter icon">
+
 # Voltronic UDP Inverter
 
 Native Home Assistant custom integration for Voltronic-compatible Wi-Fi inverter bridges that expose the PIP protocol over UDP (normally port 1025).

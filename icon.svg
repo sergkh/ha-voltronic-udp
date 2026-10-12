@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Voltronic UDP Inverter</title>
+  <desc id="desc">A solar inverter with a wireless signal</desc>
+  <rect x="16" y="16" width="224" height="224" rx="48" fill="#18bcf2"/>
+  <rect x="62" y="68" width="132" height="120" rx="20" fill="#ffffff"/>
+  <rect x="82" y="91" width="92" height="34" rx="7" fill="#0b79b7"/>
+  <path d="M97 108h34" fill="none" stroke="#ffffff" stroke-linecap="round" stroke-width="8"/>
+  <circle cx="151" cy="108" r="8" fill="#ffd15c"/>
+  <circle cx="92" cy="153" r="10" fill="#0b79b7"/>
+  <circle cx="128" cy="153" r="10" fill="#0b79b7"/>
+  <path d="M158 153h15" fill="none" stroke="#18bcf2" stroke-linecap="round" stroke-width="10"/>
+</svg>
