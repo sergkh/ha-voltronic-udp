@@ -17,3 +17,12 @@ For manual installation, copy `custom_components/voltronic_udp` to `/config/cust
 ## Protocol scope
 
 Only read-only PIP commands are sent: `QMN`, `QPIGS`, and `QMOD`. A transient `NAK` response is retried.
+
+PV input power is calculated locally as reported PV input voltage multiplied by
+reported PV input current. It is DC input power at the inverter, not an energy
+meter and not an allowance for conversion losses.
+
+PV input energy is a persistent, locally integrated counter derived from that
+power. It uses `energy` / `kWh` / `total_increasing`, so it is suitable for the
+Energy dashboard's solar-production source. It begins accumulating only after
+the integration is running and does not estimate energy during outages.

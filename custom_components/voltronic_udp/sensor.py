@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from homeassistant.components.sensor import (
+    RestoreSensor,
     SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
@@ -12,16 +14,18 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .coordinator import VoltronicCoordinator
 
 
 MEASUREMENT = SensorStateClass.MEASUREMENT
+TOTAL_INCREASING = SensorStateClass.TOTAL_INCREASING
 
 SENSORS: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(key="grid_voltage", name="Grid voltage", native_unit_of_measurement="V", device_class=SensorDeviceClass.VOLTAGE, state_class=MEASUREMENT),
@@ -38,6 +42,7 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(key="inverter_temperature", name="Inverter temperature", native_unit_of_measurement="°C", device_class=SensorDeviceClass.TEMPERATURE, state_class=MEASUREMENT),
     SensorEntityDescription(key="pv_input_current", name="PV input current", native_unit_of_measurement="A", device_class=SensorDeviceClass.CURRENT, state_class=MEASUREMENT),
     SensorEntityDescription(key="pv_input_voltage", name="PV input voltage", native_unit_of_measurement="V", device_class=SensorDeviceClass.VOLTAGE, state_class=MEASUREMENT),
+    SensorEntityDescription(key="pv_input_power", name="PV input power", native_unit_of_measurement="W", device_class=SensorDeviceClass.POWER, state_class=MEASUREMENT),
     SensorEntityDescription(key="battery_voltage_scc", name="Battery voltage SCC", native_unit_of_measurement="V", device_class=SensorDeviceClass.VOLTAGE, state_class=MEASUREMENT),
     SensorEntityDescription(key="battery_discharge_current", name="Battery discharge current", native_unit_of_measurement="A", device_class=SensorDeviceClass.CURRENT, state_class=MEASUREMENT),
     SensorEntityDescription(key="model", name="Model", entity_category=EntityCategory.DIAGNOSTIC),
@@ -57,7 +62,9 @@ async def async_setup_entry(
 ) -> None:
     """Set up Voltronic sensors for a config entry."""
     coordinator = entry.runtime_data
-    async_add_entities(VoltronicSensor(coordinator, entry, description) for description in SENSORS)
+    entities = [VoltronicSensor(coordinator, entry, description) for description in SENSORS]
+    entities.append(VoltronicPvEnergySensor(coordinator, entry))
+    async_add_entities(entities)
 
 
 class VoltronicSensor(CoordinatorEntity[VoltronicCoordinator], SensorEntity):
@@ -91,3 +98,72 @@ class VoltronicSensor(CoordinatorEntity[VoltronicCoordinator], SensorEntity):
     def native_value(self) -> Any:
         """Return the latest value supplied by the coordinator."""
         return self.coordinator.data.get(self.entity_description.key)
+
+
+class VoltronicPvEnergySensor(CoordinatorEntity[VoltronicCoordinator], RestoreSensor):
+    """Integrate PV input power into a persistent energy-production counter."""
+
+    _attr_has_entity_name = True
+    _attr_name = "PV input energy"
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_native_unit_of_measurement = "kWh"
+    _attr_state_class = TOTAL_INCREASING
+    _attr_suggested_display_precision = 3
+
+    def __init__(
+        self,
+        coordinator: VoltronicCoordinator,
+        entry: ConfigEntry[VoltronicCoordinator],
+    ) -> None:
+        """Initialize the energy counter at zero or its restored value."""
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{entry.entry_id}_pv_input_energy"
+        self._entry_id = entry.entry_id
+        self._energy = 0.0
+        self._last_power: float | None = None
+        self._last_sample: datetime | None = None
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Associate this counter with the inverter device."""
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._entry_id)},
+            name="Voltronic UDP Inverter",
+            manufacturer="Voltronic-compatible",
+            model=self.coordinator.data.get("model") or "PIP UDP bridge",
+        )
+
+    @property
+    def native_value(self) -> float:
+        """Return the monotonic, accumulated energy in kWh."""
+        return round(self._energy, 3)
+
+    async def async_added_to_hass(self) -> None:
+        """Restore the accumulated energy without estimating a downtime gap."""
+        await super().async_added_to_hass()
+        if (last_data := await self.async_get_last_sensor_data()) is not None:
+            try:
+                self._energy = float(last_data.native_value)
+            except (TypeError, ValueError):
+                pass
+        self._last_power = self._current_power()
+        self._last_sample = dt_util.utcnow()
+
+    def _current_power(self) -> float | None:
+        power = self.coordinator.data.get("pv_input_power")
+        return float(power) if isinstance(power, (int, float)) and power >= 0 else None
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Integrate two consecutive PV-power samples using the trapezoid rule."""
+        now = dt_util.utcnow()
+        power = self._current_power()
+        if power is not None and self._last_power is not None and self._last_sample is not None:
+            elapsed_seconds = (now - self._last_sample).total_seconds()
+            max_gap = max(self.coordinator.update_interval.total_seconds() * 3, 120)
+            if 0 < elapsed_seconds <= max_gap:
+                self._energy += (self._last_power + power) * elapsed_seconds / 7_200_000
+
+        self._last_power = power
+        self._last_sample = now
+        super()._handle_coordinator_update()

@@ -54,7 +54,7 @@ def _number(fields: list[str], index: int, converter: type[float] | type[int]) -
 def parse_qpigs(payload: str) -> dict[str, Any]:
     """Parse stable leading fields of a PIP QPIGS live-status reply."""
     fields = payload.split()
-    return {
+    data = {
         "grid_voltage": _number(fields, 0, float),
         "grid_frequency": _number(fields, 1, float),
         "output_voltage": _number(fields, 2, float),
@@ -73,6 +73,14 @@ def parse_qpigs(payload: str) -> dict[str, Any]:
         "battery_discharge_current": _number(fields, 15, int),
         "status_bits": fields[16] if len(fields) > 16 else None,
     }
+    pv_current = data["pv_input_current"]
+    pv_voltage = data["pv_input_voltage"]
+    data["pv_input_power"] = (
+        round(pv_current * pv_voltage, 2)
+        if isinstance(pv_current, (int, float)) and isinstance(pv_voltage, (int, float))
+        else None
+    )
+    return data
 
 
 class PipUdpClient:
