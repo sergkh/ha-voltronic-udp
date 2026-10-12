@@ -1,0 +1,32 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Voltronic UDP inverter",
+        "description": "Enter the address of the Wi-Fi inverter bridge.",
+        "data": {
+          "host": "Inverter IP address",
+          "port": "Destination UDP port",
+          "source_port": "Local source UDP port",
+          "scan_interval": "Polling interval (seconds)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to obtain a valid PIP response from the inverter."
+    },
+    "abort": {
+      "already_configured": "This inverter is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Polling settings",
+        "data": {
+          "scan_interval": "Polling interval (seconds)"
+        }
+      }
+    }
+  }
+}
